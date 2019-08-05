@@ -7,7 +7,7 @@
 #define einline __inline
 
 unsigned char rom[8192];
-unsigned char cart[32768];
+unsigned char cart[32768+16384];
 static unsigned char ram[1024];
 
 /* the sound chip registers */
