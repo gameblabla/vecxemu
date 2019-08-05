@@ -1,6 +1,8 @@
 #ifndef __VECX_H
 #define __VECX_H
 
+#define MAX_CART_SIZE 0xC000
+
 enum {
 	VECTREX_MHZ		= 1500000, /* speed of the vectrex being emulated */
 	VECTREX_COLORS  = 128,     /* number of possible colors ... grayscale */

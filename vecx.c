@@ -334,7 +334,7 @@ unsigned char read8 (unsigned address)
 				break;
 			}
 		}
-	} else if (address < 0x8000) {
+	} else if (address < MAX_CART_SIZE) {
 		/* cartridge */
 
 		data = cart[address];
@@ -516,7 +516,7 @@ void write8 (unsigned address, unsigned char data)
 				break;
 			}
 		}
-	} else if (address < 0x8000) {
+	} else if (address < MAX_CART_SIZE) {
 		/* cartridge */
 	}
 }
