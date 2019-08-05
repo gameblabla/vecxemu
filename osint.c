@@ -55,7 +55,6 @@ static void init(){
 
 	memset(cart, 0, sizeof (cart));
 	if(cartfilename){
-		FILE *f;
 		if(!(f = fopen(cartfilename, "rb"))){
 			perror(cartfilename);
 			exit(EXIT_FAILURE);
