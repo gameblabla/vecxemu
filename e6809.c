@@ -74,7 +74,7 @@ void (*e6809_write8) (unsigned address, unsigned char data);
 
 /* obtain a particular condition code. returns 0 or 1. */
 
-static einline unsigned get_cc (unsigned flag)
+einline unsigned get_cc (unsigned flag)
 {
 	return (reg_cc / flag) & 1;
 }
@@ -83,7 +83,7 @@ static einline unsigned get_cc (unsigned flag)
  * value parameter must be either 0 or 1.
  */
 
-static einline void set_cc (unsigned flag, unsigned value)
+einline void set_cc (unsigned flag, unsigned value)
 {
 	reg_cc &= ~flag;
 	reg_cc |= value * flag;
@@ -91,7 +91,7 @@ static einline void set_cc (unsigned flag, unsigned value)
 
 /* test carry */
 
-static einline unsigned test_c (unsigned i0, unsigned i1,
+einline unsigned test_c (unsigned i0, unsigned i1,
 								unsigned r, unsigned sub)
 {
 	unsigned flag;
@@ -106,14 +106,14 @@ static einline unsigned test_c (unsigned i0, unsigned i1,
 
 /* test negative */
 
-static einline unsigned test_n (unsigned r)
+einline unsigned test_n (unsigned r)
 {
 	return (r >> 7) & 1;
 }
 
 /* test for zero in lower 8 bits */
 
-static einline unsigned test_z8 (unsigned r)
+einline unsigned test_z8 (unsigned r)
 {
 	unsigned flag;
 
@@ -127,7 +127,7 @@ static einline unsigned test_z8 (unsigned r)
 
 /* test for zero in lower 16 bits */
 
-static einline unsigned test_z16 (unsigned r)
+einline unsigned test_z16 (unsigned r)
 {
 	unsigned flag;
 
@@ -145,7 +145,7 @@ static einline unsigned test_z16 (unsigned r)
  * inputs.
  */
 
-static einline unsigned test_v (unsigned i0, unsigned i1, unsigned r)
+einline unsigned test_v (unsigned i0, unsigned i1, unsigned r)
 {
 	unsigned flag;
 
@@ -156,12 +156,12 @@ static einline unsigned test_v (unsigned i0, unsigned i1, unsigned r)
 	return flag;
 }
 
-static einline unsigned get_reg_d (void)
+einline unsigned get_reg_d (void)
 {
 	return (reg_a << 8) | (reg_b & 0xff);
 }
 
-static einline void set_reg_d (unsigned value)
+einline void set_reg_d (unsigned value)
 {
 	reg_a = value >> 8;
 	reg_b = value;
@@ -171,7 +171,7 @@ static einline void set_reg_d (unsigned value)
  * while the upper bits are all zero.
  */
 
-static einline unsigned read8 (unsigned address)
+einline unsigned read8 (unsigned address)
 {
 	return (*e6809_read8) (address & 0xffff);
 }
@@ -180,12 +180,12 @@ static einline unsigned read8 (unsigned address)
  * is written. the upper bits are ignored.
  */
 
-static einline void write8 (unsigned address, unsigned data)
+einline void write8 (unsigned address, unsigned data)
 {
 	(*e6809_write8) (address & 0xffff, (unsigned char) data);
 }
 
-static einline unsigned read16 (unsigned address)
+einline unsigned read16 (unsigned address)
 {
 	unsigned datahi, datalo;
 
@@ -195,19 +195,19 @@ static einline unsigned read16 (unsigned address)
 	return (datahi << 8) | datalo;
 }
 
-static einline void write16 (unsigned address, unsigned data)
+einline void write16 (unsigned address, unsigned data)
 {
 	write8 (address, data >> 8);
 	write8 (address + 1, data);
 }
 
-static einline void push8 (unsigned *sp, unsigned data)
+einline void push8 (unsigned *sp, unsigned data)
 {
 	(*sp)--;
 	write8 (*sp, data);
 }
 
-static einline unsigned pull8 (unsigned *sp)
+einline unsigned pull8 (unsigned *sp)
 {
 	unsigned data;
 
@@ -217,13 +217,13 @@ static einline unsigned pull8 (unsigned *sp)
 	return data;
 }
 
-static einline void push16 (unsigned *sp, unsigned data)
+einline void push16 (unsigned *sp, unsigned data)
 {
 	push8 (sp, data);
 	push8 (sp, data >> 8);
 }
 
-static einline unsigned pull16 (unsigned *sp)
+einline unsigned pull16 (unsigned *sp)
 {
 	unsigned datahi, datalo;
 
@@ -235,7 +235,7 @@ static einline unsigned pull16 (unsigned *sp)
 
 /* read a byte from the address pointed to by the pc */
 
-static einline unsigned pc_read8 (void)
+einline unsigned pc_read8 (void)
 {
 	unsigned data;
 
@@ -247,7 +247,7 @@ static einline unsigned pc_read8 (void)
 
 /* read a word from the address pointed to by the pc */
 
-static einline unsigned pc_read16 (void)
+einline unsigned pc_read16 (void)
 {
 	unsigned data;
 
@@ -259,7 +259,7 @@ static einline unsigned pc_read16 (void)
 
 /* sign extend an 8-bit quantity into a 16-bit quantity */
 
-static einline unsigned sign_extend (unsigned data)
+einline unsigned sign_extend (unsigned data)
 {
 	return (~(data & 0x80) + 1) | (data & 0xff);
 }
@@ -269,7 +269,7 @@ static einline unsigned sign_extend (unsigned data)
  * instruction itself.
  */
 
-static einline unsigned ea_direct (void)
+einline unsigned ea_direct (void)
 {
 	return (reg_dp << 8) | pc_read8 ();
 }
@@ -278,14 +278,14 @@ static einline unsigned ea_direct (void)
  * the instruction.
  */
 
-static einline unsigned ea_extended (void)
+einline unsigned ea_extended (void)
 {
 	return pc_read16 ();
 }
 
 /* indexed addressing */
 
-static einline unsigned ea_indexed (unsigned *cycles)
+einline unsigned ea_indexed (unsigned *cycles)
 {
 	unsigned r, op, ea;
 
