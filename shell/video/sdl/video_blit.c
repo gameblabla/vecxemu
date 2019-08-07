@@ -219,6 +219,9 @@ void Set_Video_Menu()
 
 void Set_Video_InGame()
 {
+	SDL_FillRect(sdl_screen, NULL, 0);
+	SDL_FillRect(backbuffer, NULL, 0);
+	SDL_FillRect(internal_buffer, NULL, 0);
 }
 
 void Close_Video()
