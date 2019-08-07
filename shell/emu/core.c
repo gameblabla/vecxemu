@@ -35,7 +35,11 @@ void SaveState(const char* path, uint_fast8_t load)
 		
 	if (!fp) return;
 	
-	vecx_reset();
+	/* Only reset for loading up a save state */
+	if (load)
+	{
+		vecx_reset();
+	}
 	
 	e6809_state(load, fp);
 	e8910_state(load, fp);
