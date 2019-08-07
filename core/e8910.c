@@ -1,10 +1,21 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <string.h>
-#include "SDL.h"
+#include <SDL/SDL.h>
+#include "shared.h"
 
-#define SOUND_FREQ   22050
-#define SOUND_SAMPLE  1024
+/* GPLv3 License - See LICENSE.md for more information. */
+
+/* Gameblabla August 7th 2019 :
+ * - Allow saving of registers. It's quite big though. Useful for save state
+ * - Use Default sound frequency & sample size from shared.h.
+ * - Use float instead of double.
+ * - Use C99 datatypes for AY8910 structure.
+ * */
+
+#define SOUND_FREQ   SOUND_OUTPUT_FREQUENCY
+#define SOUND_SAMPLE  SOUND_SAMPLES_SIZE
 
 /***************************************************************************
 
@@ -25,25 +36,19 @@
 #define STEP2 length
 #define STEP  2
 
-
-typedef int           INT32;
-typedef unsigned int  UINT32;
-typedef char          INT8;
-typedef unsigned char UINT8;
-
 struct AY8910 {
 	int index;
 	int ready;
 	unsigned *Regs;
-	INT32 lastEnable;
-	INT32 PeriodA,PeriodB,PeriodC,PeriodN,PeriodE;
-	INT32 CountA,CountB,CountC,CountN,CountE;
-	UINT32 VolA,VolB,VolC,VolE;
-	UINT8 EnvelopeA,EnvelopeB,EnvelopeC;
-	UINT8 OutputA,OutputB,OutputC,OutputN;
-	INT8 CountEnv;
-	UINT8 Hold,Alternate,Attack,Holding;
-	INT32 RNG;
+	int32_t lastEnable;
+	int32_t PeriodA,PeriodB,PeriodC,PeriodN,PeriodE;
+	int32_t CountA,CountB,CountC,CountN,CountE;
+	uint32_t VolA,VolB,VolC,VolE;
+	uint8_t EnvelopeA,EnvelopeB,EnvelopeC;
+	uint8_t OutputA,OutputB,OutputC,OutputN;
+	int8_t CountEnv;
+	uint8_t Hold,Alternate,Attack,Holding;
+	int32_t RNG;
 	unsigned int VolTable[32];
 
 } PSG;
@@ -474,7 +479,8 @@ static void
 e8910_build_mixer_table()
 {
 	int i;
-	double out;
+	//double out;
+	float out;
 
 	/* calculate the volume->voltage conversion table */
 	/* The AY-3-8910 has 16 levels, in a logarithmic scale (3dB per STEP) */
@@ -492,8 +498,7 @@ e8910_build_mixer_table()
 
 extern unsigned snd_regs[16];
 
-void
-e8910_init_sound()
+void e8910_init_sound()
 {
 	// SDL audio stuff
 	SDL_AudioSpec reqSpec;
@@ -516,22 +521,32 @@ e8910_init_sound()
 	reqSpec.callback = e8910_callback;      // Callback function for filling the audio buffer
 	reqSpec.userdata = NULL;
 	/* Open the audio device */
-	if ( SDL_OpenAudio(&reqSpec, &givenSpec) < 0 ){
+	if ( SDL_OpenAudio(&reqSpec, &givenSpec) < 0 )
+	{
 		fprintf(stderr, "Couldn't open audio: %s\n", SDL_GetError());
 		exit(-1);
 	}
-
-# if 0
-	fprintf(stdout, "samples:%d format=%x freq=%d\n", givenSpec.samples, givenSpec.format, givenSpec.freq);
-# endif
 
 	// Start playing audio
 	SDL_PauseAudio(0);
 }
 
-void
-e8910_done_sound()
+void e8910_done_sound()
 {
 	SDL_CloseAudio();
 }
 
+
+void e8910_state(uint_fast8_t load, FILE* fp)
+{
+	/* Load state */
+	if (load == 1)
+	{
+		fread(&PSG, sizeof(uint8_t), sizeof(PSG), fp);
+	}
+	/* Save State */
+	else
+	{
+		fwrite(&PSG, sizeof(uint8_t), sizeof(PSG), fp);
+	}
+}

@@ -1,7 +1,14 @@
+/* GPLv3 License - See LICENSE.md for more information. */
+
+/* Gameblabla August 7th 2019 :
+ * - Increase cart variable lengh to allow 48k roms
+ * - Allow saving of VIA, analog variables. It's quite big though. Useful for save state
+ * */
+ 
 #include <stdio.h>
 #include "e6809.h"
 #include "vecx.h"
-#include "osint.h"
+#include "video_blit.h"
 #include "e8910.h"
 
 #define einline __inline
@@ -17,50 +24,40 @@ static unsigned snd_select;
 
 /* the via 6522 registers */
 
-static unsigned via_ora;
-static unsigned via_orb;
-static unsigned via_ddra;
-static unsigned via_ddrb;
-static unsigned via_t1on;  /* is timer 1 on? */
-static unsigned via_t1int; /* are timer 1 interrupts allowed? */
-static unsigned via_t1c;
-static unsigned via_t1ll;
-static unsigned via_t1lh;
-static unsigned via_t1pb7; /* timer 1 controlled version of pb7 */
-static unsigned via_t2on;  /* is timer 2 on? */
-static unsigned via_t2int; /* are timer 2 interrupts allowed? */
-static unsigned via_t2c;
-static unsigned via_t2ll;
-static unsigned via_sr;
-static unsigned via_srb;   /* number of bits shifted so far */
-static unsigned via_src;   /* shift counter */
-static unsigned via_srclk;
-static unsigned via_acr;
-static unsigned via_pcr;
-static unsigned via_ifr;
-static unsigned via_ier;
-static unsigned via_ca2;
-static unsigned via_cb2h;  /* basic handshake version of cb2 */
-static unsigned via_cb2s;  /* version of cb2 controlled by the shift register */
+struct VIA_CHIP 
+{
+	 unsigned ora;
+	 unsigned orb;
+	 unsigned ddra;
+	 unsigned ddrb;
+	 unsigned t1on;  /* is timer 1 on? */
+	 unsigned t1int; /* are timer 1 interrupts allowed? */
+	 unsigned t1c;
+	 unsigned t1ll;
+	 unsigned t1lh;
+	 unsigned t1pb7; /* timer 1 controlled version of pb7 */
+	 unsigned t2on;  /* is timer 2 on? */
+	 unsigned t2int; /* are timer 2 interrupts allowed? */
+	 unsigned t2c;
+	 unsigned t2ll;
+	 unsigned sr;
+	 unsigned srb;   /* number of bits shifted so far */
+	 unsigned src;   /* shift counter */
+	 unsigned srclk;
+	 unsigned acr;
+	 unsigned pcr;
+	 unsigned ifr;
+	 unsigned ier;
+	 unsigned ca2;
+	 unsigned cb2h;  /* basic handshake version of cb2 */
+	 unsigned cb2s;  /* version of cb2 controlled by the shift register */
+} via;
+
 
 /* analog devices */
 
-static unsigned alg_rsh;  /* zero ref sample and hold */
-static unsigned alg_xsh;  /* x sample and hold */
-static unsigned alg_ysh;  /* y sample and hold */
-static unsigned alg_zsh;  /* z sample and hold */
-unsigned alg_jch0;		  /* joystick direction channel 0 */
-unsigned alg_jch1;		  /* joystick direction channel 1 */
-unsigned alg_jch2;		  /* joystick direction channel 2 */
-unsigned alg_jch3;		  /* joystick direction channel 3 */
-static unsigned alg_jsh;  /* joystick sample and hold */
+struct analog_chips alg;
 
-static unsigned alg_compare;
-
-static long alg_dx;     /* delta x */
-static long alg_dy;     /* delta y */
-static long alg_curr_x; /* current x position */
-static long alg_curr_y; /* current y position */
 
 enum {
 	VECTREX_PDECAY	= 30,      /* phosphor decay rate */
@@ -79,15 +76,6 @@ enum {
 	VECTOR_HASH     = 65521
 };
 
-static unsigned alg_vectoring; /* are we drawing a vector right now? */
-static long alg_vector_x0;
-static long alg_vector_y0;
-static long alg_vector_x1;
-static long alg_vector_y1;
-static long alg_vector_dx;
-static long alg_vector_dy;
-static unsigned char alg_vector_color;
-
 long vector_draw_cnt;
 long vector_erse_cnt;
 static vector_t vectors_set[2 * VECTOR_CNT];
@@ -98,11 +86,52 @@ static long vector_hash[VECTOR_HASH];
 
 static long fcycles;
 
-/* update the snd chips internal registers when via_ora/via_orb changes */
+void sys_state(uint_fast8_t load, FILE* fp)
+{	
+	if (load == 1)
+	{
+		fread(&fcycles, sizeof(uint8_t), sizeof(fcycles), fp);
+		fread(&vector_hash, sizeof(uint8_t), sizeof(vector_hash), fp);
+		fread(&vectors_draw, sizeof(uint8_t), sizeof(vectors_draw), fp);
+		fread(&vectors_erse, sizeof(uint8_t), sizeof(vectors_erse), fp);
+		
+		fread(&vectors_set, sizeof(uint8_t), sizeof(vectors_set), fp);
+		
+		fread(&vector_erse_cnt, sizeof(uint8_t), sizeof(vector_erse_cnt), fp);
+		fread(&vector_draw_cnt, sizeof(uint8_t), sizeof(vector_draw_cnt), fp);
+		
+		fread(&alg, sizeof(uint8_t), sizeof(alg), fp);
+		fread(&via, sizeof(uint8_t), sizeof(via), fp);
+		
+		fread(&ram, sizeof(uint8_t), sizeof(ram), fp);
+		fread(&snd_regs, sizeof(uint8_t), sizeof(snd_regs), fp);
+	}
+	else
+	{
+		fwrite(&fcycles, sizeof(uint8_t), sizeof(fcycles), fp);
+		fwrite(&vector_hash, sizeof(uint8_t), sizeof(vector_hash), fp);
+		fwrite(&vectors_draw, sizeof(uint8_t), sizeof(vectors_draw), fp);
+		fwrite(&vectors_erse, sizeof(uint8_t), sizeof(vectors_erse), fp);
+		
+		fwrite(&vectors_set, sizeof(uint8_t), sizeof(vectors_set), fp);
+		
+		fwrite(&vector_erse_cnt, sizeof(uint8_t), sizeof(vector_erse_cnt), fp);
+		fwrite(&vector_draw_cnt, sizeof(uint8_t), sizeof(vector_draw_cnt), fp);
+		
+		fwrite(&alg, sizeof(uint8_t), sizeof(alg), fp);
+		fwrite(&via, sizeof(uint8_t), sizeof(via), fp);
+		
+		fwrite(&ram, sizeof(uint8_t), sizeof(ram), fp);
+		fwrite(&snd_regs, sizeof(uint8_t), sizeof(snd_regs), fp);
+	}
+}
+
+
+/* update the snd chips internal registers when via.ora/via.orb changes */
 
 static einline void snd_update (void)
 {
-	switch (via_orb & 0x18) {
+	switch (via.orb & 0x18) {
 	case 0x00:
 		/* the sound chip is disabled */
 		break;
@@ -113,16 +142,16 @@ static einline void snd_update (void)
 		/* the sound chip is recieving data */
 
 		if (snd_select != 14) {
-			snd_regs[snd_select] = via_ora;
-			e8910_write(snd_select, via_ora);
+			snd_regs[snd_select] = via.ora;
+			e8910_write(snd_select, via.ora);
 		}
 
 		break;
 	case 0x18:
 		/* the sound chip is latching an address */
 
-		if ((via_ora & 0xf0) == 0x00) {
-			snd_select = via_ora & 0x0f;
+		if ((via.ora & 0xf0) == 0x00) {
+			snd_select = via.ora & 0x0f;
 		}
 
 		break;
@@ -133,57 +162,57 @@ static einline void snd_update (void)
 
 static einline void alg_update (void)
 {
-	switch (via_orb & 0x06) {
+	switch (via.orb & 0x06) {
 	case 0x00:
-		alg_jsh = alg_jch0;
+		alg.jsh = alg.jch0;
 
-		if ((via_orb & 0x01) == 0x00) {
+		if ((via.orb & 0x01) == 0x00) {
 			/* demultiplexor is on */
-			alg_ysh = alg_xsh;
+			alg.ysh = alg.xsh;
 		}
 
 		break;
 	case 0x02:
-		alg_jsh = alg_jch1;
+		alg.jsh = alg.jch1;
 
-		if ((via_orb & 0x01) == 0x00) {
+		if ((via.orb & 0x01) == 0x00) {
 			/* demultiplexor is on */
-			alg_rsh = alg_xsh;
+			alg.rsh = alg.xsh;
 		}
 
 		break;
 	case 0x04:
-		alg_jsh = alg_jch2;
+		alg.jsh = alg.jch2;
 
-		if ((via_orb & 0x01) == 0x00) {
+		if ((via.orb & 0x01) == 0x00) {
 			/* demultiplexor is on */
 
-			if (alg_xsh > 0x80) {
-				alg_zsh = alg_xsh - 0x80;
+			if (alg.xsh > 0x80) {
+				alg.zsh = alg.xsh - 0x80;
 			} else {
-				alg_zsh = 0;
+				alg.zsh = 0;
 			}
 		}
 
 		break;
 	case 0x06:
 		/* sound output line */
-		alg_jsh = alg_jch3;
+		alg.jsh = alg.jch3;
 		break;
 	}
 
 	/* compare the current joystick direction with a reference */
 
-	if (alg_jsh > alg_xsh) {
-		alg_compare = 0x20;
+	if (alg.jsh > alg.xsh) {
+		alg.compare = 0x20;
 	} else {
-		alg_compare = 0;
+		alg.compare = 0;
 	}
 
 	/* compute the new "deltas" */
 
-	alg_dx = (long) alg_xsh - (long) alg_rsh;
-	alg_dy = (long) alg_rsh - (long) alg_ysh;
+	alg.dx = (long) alg.xsh - (long) alg.rsh;
+	alg.dy = (long) alg.rsh - (long) alg.ysh;
 }
 
 /* update IRQ and bit-7 of the ifr register after making an adjustment to
@@ -192,10 +221,10 @@ static einline void alg_update (void)
 
 static einline void int_update (void)
 {
-	if ((via_ifr & 0x7f) & (via_ier & 0x7f)) {
-		via_ifr |= 0x80;
+	if ((via.ifr & 0x7f) & (via.ier & 0x7f)) {
+		via.ifr |= 0x80;
 	} else {
-		via_ifr &= 0x7f;
+		via.ifr &= 0x7f;
 	}
 }
 
@@ -218,58 +247,58 @@ unsigned char read8 (unsigned address)
 			switch (address & 0xf) {
 			case 0x0:
 				/* compare signal is an input so the value does not come from
-				 * via_orb.
+				 * via.orb.
 				 */
 
-				if (via_acr & 0x80) {
+				if (via.acr & 0x80) {
 					/* timer 1 has control of bit 7 */
 
-					data = (unsigned char) ((via_orb & 0x5f) | via_t1pb7 | alg_compare);
+					data = (unsigned char) ((via.orb & 0x5f) | via.t1pb7 | alg.compare);
 				} else {
-					/* bit 7 is being driven by via_orb */
+					/* bit 7 is being driven by via.orb */
 
-					data = (unsigned char) ((via_orb & 0xdf) | alg_compare);
+					data = (unsigned char) ((via.orb & 0xdf) | alg.compare);
 				}
 
 				break;
 			case 0x1:
 				/* register 1 also performs handshakes if necessary */
 
-				if ((via_pcr & 0x0e) == 0x08) {
+				if ((via.pcr & 0x0e) == 0x08) {
 					/* if ca2 is in pulse mode or handshake mode, then it
 					 * goes low whenever ira is read.
 					 */
 
-					via_ca2 = 0;
+					via.ca2 = 0;
 				}
 
 				/* fall through */
 
 			case 0xf:
-				if ((via_orb & 0x18) == 0x08) {
+				if ((via.orb & 0x18) == 0x08) {
 					/* the snd chip is driving port a */
 
 					data = (unsigned char) snd_regs[snd_select];
 				} else {
-					data = (unsigned char) via_ora;
+					data = (unsigned char) via.ora;
 				}
 
 				break;
 			case 0x2:
-				data = (unsigned char) via_ddrb;
+				data = (unsigned char) via.ddrb;
 				break;
 			case 0x3:
-				data = (unsigned char) via_ddra;
+				data = (unsigned char) via.ddra;
 				break;
 			case 0x4:
 				/* T1 low order counter */
 
-				data = (unsigned char) via_t1c;
-				via_ifr &= 0xbf; /* remove timer 1 interrupt flag */
+				data = (unsigned char) via.t1c;
+				via.ifr &= 0xbf; /* remove timer 1 interrupt flag */
 
-				via_t1on = 0; /* timer 1 is stopped */
-				via_t1int = 0;
-				via_t1pb7 = 0x80;
+				via.t1on = 0; /* timer 1 is stopped */
+				via.t1int = 0;
+				via.t1pb7 = 0x80;
 
 				int_update ();
 
@@ -277,27 +306,27 @@ unsigned char read8 (unsigned address)
 			case 0x5:
 				/* T1 high order counter */
 
-				data = (unsigned char) (via_t1c >> 8);
+				data = (unsigned char) (via.t1c >> 8);
 
 				break;
 			case 0x6:
 				/* T1 low order latch */
 
-				data = (unsigned char) via_t1ll;
+				data = (unsigned char) via.t1ll;
 				break;
 			case 0x7:
 				/* T1 high order latch */
 
-				data = (unsigned char) via_t1lh;
+				data = (unsigned char) via.t1lh;
 				break;
 			case 0x8:
 				/* T2 low order counter */
 
-				data = (unsigned char) via_t2c;
-				via_ifr &= 0xdf; /* remove timer 2 interrupt flag */
+				data = (unsigned char) via.t2c;
+				via.ifr &= 0xdf; /* remove timer 2 interrupt flag */
 
-				via_t2on = 0; /* timer 2 is stopped */
-				via_t2int = 0;
+				via.t2on = 0; /* timer 2 is stopped */
+				via.t2int = 0;
 
 				int_update ();
 
@@ -305,32 +334,32 @@ unsigned char read8 (unsigned address)
 			case 0x9:
 				/* T2 high order counter */
 
-				data = (unsigned char) (via_t2c >> 8);
+				data = (unsigned char) (via.t2c >> 8);
 				break;
 			case 0xa:
-				data = (unsigned char) via_sr;
-				via_ifr &= 0xfb; /* remove shift register interrupt flag */
-				via_srb = 0;
-				via_srclk = 1;
+				data = (unsigned char) via.sr;
+				via.ifr &= 0xfb; /* remove shift register interrupt flag */
+				via.srb = 0;
+				via.srclk = 1;
 
 				int_update ();
 
 				break;
 			case 0xb:
-				data = (unsigned char) via_acr;
+				data = (unsigned char) via.acr;
 				break;
 			case 0xc:
-				data = (unsigned char) via_pcr;
+				data = (unsigned char) via.pcr;
 				break;
 			case 0xd:
 				/* interrupt flag register */
 
-				data = (unsigned char) via_ifr;
+				data = (unsigned char) via.ifr;
 				break;
 			case 0xe:
 				/* interrupt enable register */
 
-				data = (unsigned char) (via_ier | 0x80);
+				data = (unsigned char) (via.ier | 0x80);
 				break;
 			}
 		}
@@ -359,36 +388,36 @@ void write8 (unsigned address, unsigned char data)
 		if (address & 0x1000) {
 			switch (address & 0xf) {
 			case 0x0:
-				via_orb = data;
+				via.orb = data;
 
 				snd_update ();
 
 				alg_update ();
 
-				if ((via_pcr & 0xe0) == 0x80) {
+				if ((via.pcr & 0xe0) == 0x80) {
 					/* if cb2 is in pulse mode or handshake mode, then it
 					 * goes low whenever orb is written.
 					 */
 
-					via_cb2h = 0;
+					via.cb2h = 0;
 				}
 
 				break;
 			case 0x1:
 				/* register 1 also performs handshakes if necessary */
 
-				if ((via_pcr & 0x0e) == 0x08) {
+				if ((via.pcr & 0x0e) == 0x08) {
 					/* if ca2 is in pulse mode or handshake mode, then it
 					 * goes low whenever ora is written.
 					 */
 
-					via_ca2 = 0;
+					via.ca2 = 0;
 				}
 
 				/* fall through */
 
 			case 0xf:
-				via_ora = data;
+				via.ora = data;
 
 				snd_update ();
 
@@ -396,33 +425,33 @@ void write8 (unsigned address, unsigned char data)
 				 * feeds the x axis sample and hold.
 				 */
 
-				alg_xsh = data ^ 0x80;
+				alg.xsh = data ^ 0x80;
 
 				alg_update ();
 
 				break;
 			case 0x2:
-				via_ddrb = data;
+				via.ddrb = data;
 				break;
 			case 0x3:
-				via_ddra = data;
+				via.ddra = data;
 				break;
 			case 0x4:
 				/* T1 low order counter */
 
-				via_t1ll = data;
+				via.t1ll = data;
 
 				break;
 			case 0x5:
 				/* T1 high order counter */
 
-				via_t1lh = data;
-				via_t1c = (via_t1lh << 8) | via_t1ll;
-				via_ifr &= 0xbf; /* remove timer 1 interrupt flag */
+				via.t1lh = data;
+				via.t1c = (via.t1lh << 8) | via.t1ll;
+				via.ifr &= 0xbf; /* remove timer 1 interrupt flag */
 
-				via_t1on = 1; /* timer 1 starts running */
-				via_t1int = 1;
-				via_t1pb7 = 0;
+				via.t1on = 1; /* timer 1 starts running */
+				via.t1int = 1;
+				via.t1pb7 = 0;
 
 				int_update ();
 
@@ -430,75 +459,75 @@ void write8 (unsigned address, unsigned char data)
 			case 0x6:
 				/* T1 low order latch */
 
-				via_t1ll = data;
+				via.t1ll = data;
 				break;
 			case 0x7:
 				/* T1 high order latch */
 
-				via_t1lh = data;
+				via.t1lh = data;
 				break;
 			case 0x8:
 				/* T2 low order latch */
 
-				via_t2ll = data;
+				via.t2ll = data;
 				break;
 			case 0x9:
 				/* T2 high order latch/counter */
 
-				via_t2c = (data << 8) | via_t2ll;
-				via_ifr &= 0xdf;
+				via.t2c = (data << 8) | via.t2ll;
+				via.ifr &= 0xdf;
 
-				via_t2on = 1; /* timer 2 starts running */
-				via_t2int = 1;
+				via.t2on = 1; /* timer 2 starts running */
+				via.t2int = 1;
 
 				int_update ();
 
 				break;
 			case 0xa:
-				via_sr = data;
-				via_ifr &= 0xfb; /* remove shift register interrupt flag */
-				via_srb = 0;
-				via_srclk = 1;
+				via.sr = data;
+				via.ifr &= 0xfb; /* remove shift register interrupt flag */
+				via.srb = 0;
+				via.srclk = 1;
 
 				int_update ();
 
 				break;
 			case 0xb:
-				via_acr = data;
+				via.acr = data;
 				break;
 			case 0xc:
-				via_pcr = data;
+				via.pcr = data;
 
 
-				if ((via_pcr & 0x0e) == 0x0c) {
+				if ((via.pcr & 0x0e) == 0x0c) {
 					/* ca2 is outputting low */
 
-					via_ca2 = 0;
+					via.ca2 = 0;
 				} else {
 					/* ca2 is disabled or in pulse mode or is
 					 * outputting high.
 					 */
 
-					via_ca2 = 1;
+					via.ca2 = 1;
 				}
 
-				if ((via_pcr & 0xe0) == 0xc0) {
+				if ((via.pcr & 0xe0) == 0xc0) {
 					/* cb2 is outputting low */
 
-					via_cb2h = 0;
+					via.cb2h = 0;
 				} else {
 					/* cb2 is disabled or is in pulse mode or is
 					 * outputting high.
 					 */
 
-					via_cb2h = 1;
+					via.cb2h = 1;
 				}
 
 				break;
 			case 0xd:
 				/* interrupt flag register */
 
-				via_ifr &= ~(data & 0x7f);
+				via.ifr &= ~(data & 0x7f);
 				int_update ();
 
 				break;
@@ -506,9 +535,9 @@ void write8 (unsigned address, unsigned char data)
 				/* interrupt enable register */
 
 				if (data & 0x80) {
-					via_ier |= data & 0x7f;
+					via.ier |= data & 0x7f;
 				} else {
-					via_ier &= ~(data & 0x7f);
+					via.ier &= ~(data & 0x7f);
 				}
 
 				int_update ();
@@ -543,50 +572,50 @@ void vecx_reset (void)
 
 	snd_select = 0;
 
-	via_ora = 0;
-	via_orb = 0;
-	via_ddra = 0;
-	via_ddrb = 0;
-	via_t1on = 0;
-	via_t1int = 0;
-	via_t1c = 0;
-	via_t1ll = 0;
-	via_t1lh = 0;
-	via_t1pb7 = 0x80;
-	via_t2on = 0;
-	via_t2int = 0;
-	via_t2c = 0;
-	via_t2ll = 0;
-	via_sr = 0;
-	via_srb = 8;
-	via_src = 0;
-	via_srclk = 0;
-	via_acr = 0;
-	via_pcr = 0;
-	via_ifr = 0;
-	via_ier = 0;
-	via_ca2 = 1;
-	via_cb2h = 1;
-	via_cb2s = 0;
+	via.ora = 0;
+	via.orb = 0;
+	via.ddra = 0;
+	via.ddrb = 0;
+	via.t1on = 0;
+	via.t1int = 0;
+	via.t1c = 0;
+	via.t1ll = 0;
+	via.t1lh = 0;
+	via.t1pb7 = 0x80;
+	via.t2on = 0;
+	via.t2int = 0;
+	via.t2c = 0;
+	via.t2ll = 0;
+	via.sr = 0;
+	via.srb = 8;
+	via.src = 0;
+	via.srclk = 0;
+	via.acr = 0;
+	via.pcr = 0;
+	via.ifr = 0;
+	via.ier = 0;
+	via.ca2 = 1;
+	via.cb2h = 1;
+	via.cb2s = 0;
 
-	alg_rsh = 128;
-	alg_xsh = 128;
-	alg_ysh = 128;
-	alg_zsh = 0;
-	alg_jch0 = 128;
-	alg_jch1 = 128;
-	alg_jch2 = 128;
-	alg_jch3 = 128;
-	alg_jsh = 128;
+	alg.rsh = 128;
+	alg.xsh = 128;
+	alg.ysh = 128;
+	alg.zsh = 0;
+	alg.jch0 = 128;
+	alg.jch1 = 128;
+	alg.jch2 = 128;
+	alg.jch3 = 128;
+	alg.jsh = 128;
 
-	alg_compare = 0; /* check this */
+	alg.compare = 0; /* check this */
 
-	alg_dx = 0;
-	alg_dy = 0;
-	alg_curr_x = ALG_MAX_X / 2;
-	alg_curr_y = ALG_MAX_Y / 2;
+	alg.dx = 0;
+	alg.dy = 0;
+	alg.curr_x = ALG_MAX_X / 2;
+	alg.curr_y = ALG_MAX_Y / 2;
 
-	alg_vectoring = 0;
+	alg.vectoring = 0;
 
 	vector_draw_cnt = 0;
 	vector_erse_cnt = 0;
@@ -609,69 +638,69 @@ static einline void via_sstep0 (void)
 {
 	unsigned t2shift;
 
-	if (via_t1on) {
-		via_t1c--;
+	if (via.t1on) {
+		via.t1c--;
 
-		if ((via_t1c & 0xffff) == 0xffff) {
+		if ((via.t1c & 0xffff) == 0xffff) {
 			/* counter just rolled over */
 
-			if (via_acr & 0x40) {
+			if (via.acr & 0x40) {
 				/* continuous interrupt mode */
 
-				via_ifr |= 0x40;
+				via.ifr |= 0x40;
 				int_update ();
-				via_t1pb7 = 0x80 - via_t1pb7;
+				via.t1pb7 = 0x80 - via.t1pb7;
 
 				/* reload counter */
 
-				via_t1c = (via_t1lh << 8) | via_t1ll;
+				via.t1c = (via.t1lh << 8) | via.t1ll;
 			} else {
 				/* one shot mode */
 
-				if (via_t1int) {
-					via_ifr |= 0x40;
+				if (via.t1int) {
+					via.ifr |= 0x40;
 					int_update ();
-					via_t1pb7 = 0x80;
-					via_t1int = 0;
+					via.t1pb7 = 0x80;
+					via.t1int = 0;
 				}
 			}
 		}
 	}
 
-	if (via_t2on && (via_acr & 0x20) == 0x00) {
-		via_t2c--;
+	if (via.t2on && (via.acr & 0x20) == 0x00) {
+		via.t2c--;
 
-		if ((via_t2c & 0xffff) == 0xffff) {
+		if ((via.t2c & 0xffff) == 0xffff) {
 			/* one shot mode */
 
-			if (via_t2int) {
-				via_ifr |= 0x20;
+			if (via.t2int) {
+				via.ifr |= 0x20;
 				int_update ();
-				via_t2int = 0;
+				via.t2int = 0;
 			}
 		}
 	}
 
 	/* shift counter */
 
-	via_src--;
+	via.src--;
 
-	if ((via_src & 0xff) == 0xff) {
-		via_src = via_t2ll;
+	if ((via.src & 0xff) == 0xff) {
+		via.src = via.t2ll;
 
-		if (via_srclk) {
+		if (via.srclk) {
 			t2shift = 1;
-			via_srclk = 0;
+			via.srclk = 0;
 		} else {
 			t2shift = 0;
-			via_srclk = 1;
+			via.srclk = 1;
 		}
 	} else {
 		t2shift = 0;
 	}
 
-	if (via_srb < 8) {
-		switch (via_acr & 0x1c) {
+	if (via.srb < 8) {
+		switch (via.acr & 0x1c) {
 		case 0x00:
 			/* disabled */
 			break;
@@ -681,16 +710,16 @@ static einline void via_sstep0 (void)
 			if (t2shift) {
 				/* shifting in 0s since cb2 is always an output */
 
-				via_sr <<= 1;
-				via_srb++;
+				via.sr <<= 1;
+				via.srb++;
 			}
 
 			break;
 		case 0x08:
 			/* shift in under system clk control */
 
-			via_sr <<= 1;
-			via_srb++;
+			via.sr <<= 1;
+			via.srb++;
 
 			break;
 		case 0x0c:
@@ -700,10 +729,10 @@ static einline void via_sstep0 (void)
 			/* shift out under t2 control (free run) */
 
 			if (t2shift) {
-				via_cb2s = (via_sr >> 7) & 1;
+				via.cb2s = (via.sr >> 7) & 1;
 
-				via_sr <<= 1;
-				via_sr |= via_cb2s;
+				via.sr <<= 1;
+				via.sr |= via.cb2s;
 			}
 
 			break;
@@ -711,22 +740,22 @@ static einline void via_sstep0 (void)
 			/* shift out under t2 control */
 
 			if (t2shift) {
-				via_cb2s = (via_sr >> 7) & 1;
+				via.cb2s = (via.sr >> 7) & 1;
 
-				via_sr <<= 1;
-				via_sr |= via_cb2s;
-				via_srb++;
+				via.sr <<= 1;
+				via.sr |= via.cb2s;
+				via.srb++;
 			}
 
 			break;
 		case 0x18:
 			/* shift out under system clock control */
 
-			via_cb2s = (via_sr >> 7) & 1;
+			via.cb2s = (via.sr >> 7) & 1;
 
-			via_sr <<= 1;
-			via_sr |= via_cb2s;
-			via_srb++;
+			via.sr <<= 1;
+			via.sr |= via.cb2s;
+			via.srb++;
 
 			break;
 		case 0x1c:
@@ -734,8 +763,8 @@ static einline void via_sstep0 (void)
 			break;
 		}
 
-		if (via_srb == 8) {
-			via_ifr |= 0x04;
+		if (via.srb == 8) {
+			via.ifr |= 0x04;
 			int_update ();
 		}
 	}
@@ -745,20 +774,20 @@ static einline void via_sstep0 (void)
 
 static einline void via_sstep1 (void)
 {
-	if ((via_pcr & 0x0e) == 0x0a) {
+	if ((via.pcr & 0x0e) == 0x0a) {
 		/* if ca2 is in pulse mode, then make sure
 		 * it gets restored to '1' after the pulse.
 		 */
 
-		via_ca2 = 1;
+		via.ca2 = 1;
 	}
 
-	if ((via_pcr & 0xe0) == 0xa0) {
+	if ((via.pcr & 0xe0) == 0xa0) {
 		/* if cb2 is in pulse mode, then make sure
 		 * it gets restored to '1' after the pulse.
 		 */
 
-		via_cb2h = 1;
+		via.cb2h = 1;
 	}
 }
 
@@ -816,50 +845,50 @@ static einline void alg_sstep (void)
 	unsigned sig_ramp;
 	unsigned sig_blank;
 
-	if ((via_acr & 0x10) == 0x10) {
-		sig_blank = via_cb2s;
+	if ((via.acr & 0x10) == 0x10) {
+		sig_blank = via.cb2s;
 	} else {
-		sig_blank = via_cb2h;
+		sig_blank = via.cb2h;
 	}
 
-	if (via_ca2 == 0) {
+	if (via.ca2 == 0) {
 		/* need to force the current point to the 'orgin' so just
 		 * calculate distance to origin and use that as dx,dy.
 		 */
 
-		sig_dx = ALG_MAX_X / 2 - alg_curr_x;
-		sig_dy = ALG_MAX_Y / 2 - alg_curr_y;
+		sig_dx = ALG_MAX_X / 2 - alg.curr_x;
+		sig_dy = ALG_MAX_Y / 2 - alg.curr_y;
 	} else {
-		if (via_acr & 0x80) {
-			sig_ramp = via_t1pb7;
+		if (via.acr & 0x80) {
+			sig_ramp = via.t1pb7;
 		} else {
-			sig_ramp = via_orb & 0x80;
+			sig_ramp = via.orb & 0x80;
 		}
 
 		if (sig_ramp == 0) {
-			sig_dx = alg_dx;
-			sig_dy = alg_dy;
+			sig_dx = alg.dx;
+			sig_dy = alg.dy;
 		} else {
 			sig_dx = 0;
 			sig_dy = 0;
 		}
 	}
 
-	if (alg_vectoring == 0) {
+	if (alg.vectoring == 0) {
 		if (sig_blank == 1 &&
-			alg_curr_x >= 0 && alg_curr_x < ALG_MAX_X &&
-			alg_curr_y >= 0 && alg_curr_y < ALG_MAX_Y) {
+			alg.curr_x >= 0 && alg.curr_x < ALG_MAX_X &&
+			alg.curr_y >= 0 && alg.curr_y < ALG_MAX_Y) {
 
 			/* start a new vector */
 
-			alg_vectoring = 1;
-			alg_vector_x0 = alg_curr_x;
-			alg_vector_y0 = alg_curr_y;
-			alg_vector_x1 = alg_curr_x;
-			alg_vector_y1 = alg_curr_y;
-			alg_vector_dx = sig_dx;
-			alg_vector_dy = sig_dy;
-			alg_vector_color = (unsigned char) alg_zsh;
+			alg.vectoring = 1;
+			alg.vector_x0 = alg.curr_x;
+			alg.vector_y0 = alg.curr_y;
+			alg.vector_x1 = alg.curr_x;
+			alg.vector_y1 = alg.curr_y;
+			alg.vector_dx = sig_dx;
+			alg.vector_dy = sig_dy;
+			alg.vector_color = (unsigned char) alg.zsh;
 		}
 	} else {
 		/* already drawing a vector ... check if we need to turn it off */
@@ -869,55 +898,55 @@ static einline void alg_sstep (void)
 			 * new line.
 			 */
 
-			alg_vectoring = 0;
+			alg.vectoring = 0;
 
-			alg_addline (alg_vector_x0, alg_vector_y0,
-						 alg_vector_x1, alg_vector_y1,
-						 alg_vector_color);
-		} else if (sig_dx != alg_vector_dx ||
-				   sig_dy != alg_vector_dy ||
-				   (unsigned char) alg_zsh != alg_vector_color) {
+			alg_addline (alg.vector_x0, alg.vector_y0,
+						 alg.vector_x1, alg.vector_y1,
+						 alg.vector_color);
+		} else if (sig_dx != alg.vector_dx ||
+				   sig_dy != alg.vector_dy ||
+				   (unsigned char) alg.zsh != alg.vector_color) {
 
 			/* the parameters of the vectoring processing has changed.
 			 * so end the current line.
 			 */
 
-			alg_addline (alg_vector_x0, alg_vector_y0,
-						 alg_vector_x1, alg_vector_y1,
-						 alg_vector_color);
+			alg_addline (alg.vector_x0, alg.vector_y0,
+						 alg.vector_x1, alg.vector_y1,
+						 alg.vector_color);
 
 			/* we continue vectoring with a new set of parameters if the
 			 * current point is not out of limits.
 			 */
 
-			if (alg_curr_x >= 0 && alg_curr_x < ALG_MAX_X &&
-				alg_curr_y >= 0 && alg_curr_y < ALG_MAX_Y) {
-				alg_vector_x0 = alg_curr_x;
-				alg_vector_y0 = alg_curr_y;
-				alg_vector_x1 = alg_curr_x;
-				alg_vector_y1 = alg_curr_y;
-				alg_vector_dx = sig_dx;
-				alg_vector_dy = sig_dy;
-				alg_vector_color = (unsigned char) alg_zsh;
+			if (alg.curr_x >= 0 && alg.curr_x < ALG_MAX_X &&
+				alg.curr_y >= 0 && alg.curr_y < ALG_MAX_Y) {
+				alg.vector_x0 = alg.curr_x;
+				alg.vector_y0 = alg.curr_y;
+				alg.vector_x1 = alg.curr_x;
+				alg.vector_y1 = alg.curr_y;
+				alg.vector_dx = sig_dx;
+				alg.vector_dy = sig_dy;
+				alg.vector_color = (unsigned char) alg.zsh;
 			} else {
-				alg_vectoring = 0;
+				alg.vectoring = 0;
 			}
 		}
 	}
 
-	alg_curr_x += sig_dx;
-	alg_curr_y += sig_dy;
+	alg.curr_x += sig_dx;
+	alg.curr_y += sig_dy;
 
-	if (alg_vectoring == 1 &&
-		alg_curr_x >= 0 && alg_curr_x < ALG_MAX_X &&
-		alg_curr_y >= 0 && alg_curr_y < ALG_MAX_Y) {
+	if (alg.vectoring == 1 &&
+		alg.curr_x >= 0 && alg.curr_x < ALG_MAX_X &&
+		alg.curr_y >= 0 && alg.curr_y < ALG_MAX_Y) {
 
 		/* we're vectoring ... current point is still within limits so
 		 * extend the current vector.
 		 */
 
-		alg_vector_x1 = alg_curr_x;
-		alg_vector_y1 = alg_curr_y;
+		alg.vector_x1 = alg.curr_x;
+		alg.vector_y1 = alg.curr_y;
 	}
 }
 
@@ -926,7 +955,7 @@ void vecx_emu (long cycles)
 	unsigned c, icycles;
 
 	while (cycles > 0) {
-		icycles = e6809_sstep (via_ifr & 0x80, 0);
+		icycles = e6809_sstep (via.ifr & 0x80, 0);
 
 		for (c = 0; c < icycles; c++) {
 			via_sstep0 ();
@@ -942,7 +971,7 @@ void vecx_emu (long cycles)
 			vector_t *tmp;
 
 			fcycles += FCYCLES_INIT;
-			osint_render ();
+			Update_Video_Ingame();
 
 			/* everything that was drawn during this pass now now enters
 			 * the erase list for the next pass.

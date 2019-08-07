@@ -1,3 +1,13 @@
 *.o
 vecx
 tags
+*.vec
+*.gcda
+*.a
+*.elf
+*.sts
+*.mp3
+*.dat
+*.ipk
+*.opk
+*.bin

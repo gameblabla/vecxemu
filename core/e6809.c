@@ -1,7 +1,14 @@
 #include <stdio.h>
 #include "e6809.h"
 
-/* code assumptions:
+/* GPLv3 License - See LICENSE.md for more information. */
+
+/* Gameblabla August 7th 2019 :
+ * - Allow saving of registers. It's quite big though. Useful for save state
+ * */
+ 
+
+/* Code assumptions:
  *  - it is assumed that an 'int' is at least 16 bits long.
  *  - a 16-bit register has valid bits only in the lower 16 bits and an
  *    8-bit register has valid bits only in the lower 8 bits. the upper
@@ -12,7 +19,8 @@
 
 #define einline static __inline
 
-enum {
+enum 
+{
 	FLAG_E		= 0x80,
 	FLAG_F		= 0x40,
 	FLAG_H		= 0x20,
@@ -71,6 +79,40 @@ static unsigned *rptr_xyus[4] = {
 
 unsigned char (*e6809_read8) (unsigned address);
 void (*e6809_write8) (unsigned address, unsigned char data);
+
+void e6809_state(uint_fast8_t load, FILE* fp)
+{
+	/* Load state */
+	if (load == 1)
+	{
+		fread(&irq_status, sizeof(uint8_t), sizeof(irq_status), fp);
+		fread(&reg_cc, sizeof(uint8_t), sizeof(reg_cc), fp);
+		fread(&reg_dp, sizeof(uint8_t), sizeof(reg_dp), fp);
+		fread(&reg_b, sizeof(uint8_t), sizeof(reg_b), fp);
+		fread(&reg_a, sizeof(uint8_t), sizeof(reg_a), fp);
+		
+		fread(&reg_pc, sizeof(uint8_t), sizeof(reg_pc), fp);
+		fread(&reg_s, sizeof(uint8_t), sizeof(reg_s), fp);
+		fread(&reg_u, sizeof(uint8_t), sizeof(reg_u), fp);
+		fread(&reg_y, sizeof(uint8_t), sizeof(reg_y), fp);
+		fread(&reg_x, sizeof(uint8_t), sizeof(reg_x), fp);
+	}
+	/* Save State */
+	else
+	{
+		fwrite(&irq_status, sizeof(uint8_t), sizeof(irq_status), fp);
+		fwrite(&reg_cc, sizeof(uint8_t), sizeof(reg_cc), fp);
+		fwrite(&reg_dp, sizeof(uint8_t), sizeof(reg_dp), fp);
+		fwrite(&reg_b, sizeof(uint8_t), sizeof(reg_b), fp);
+		fwrite(&reg_a, sizeof(uint8_t), sizeof(reg_a), fp);
+		
+		fwrite(&reg_pc, sizeof(uint8_t), sizeof(reg_pc), fp);
+		fwrite(&reg_s, sizeof(uint8_t), sizeof(reg_s), fp);
+		fwrite(&reg_u, sizeof(uint8_t), sizeof(reg_u), fp);
+		fwrite(&reg_y, sizeof(uint8_t), sizeof(reg_y), fp);
+		fwrite(&reg_x, sizeof(uint8_t), sizeof(reg_x), fp);
+	}
+}
 
 /* obtain a particular condition code. returns 0 or 1. */
 

@@ -1,13 +1,29 @@
+PRGNAME     = vecx.elf
+CC          = gcc
 
-CFLAGS := -O3 -Wall -Wextra $(shell sdl-config --cflags)
-LIBS := $(shell sdl-config --libs) -lSDL_gfx -lSDL_image
-OBJECTS := e6809.o e8910.o osint.o vecx.o
-TARGET := vecx
-CLEANFILES := $(TARGET) $(OBJECTS)
+# change compilation / linking flag options
 
-$(TARGET): $(OBJECTS)
-	$(CC) $(CFLAGS) -o $@ $^ $(LIBS)
+INCLUDES	= -Ishell/input/sdl -Icore -Icore/sound -Ishell/menu -Ishell/video/sdl -Ishell/audio -Ishell/scalers -Ishell/headers -Ishell/fonts
+DEFINES		= -DLSB_FIRST -DINLINE="inline" -DWANT_16BPP -DFRONTEND_SUPPORTS_RGB565
+DEFINES		+= -DFRAMESKIP
+
+CFLAGS		= -Ofast -march=native -flto -std=gnu99 $(INCLUDES) $(DEFINES)
+LDFLAGS     = -lSDL -lSDL_image -lm -lasound -flto -s
+
+# Files to be compiled
+SRCDIR 		= ./core
+SRCDIR 		+= ./shell/video/sdl ./shell/audio/sdl ./shell/input/sdl ./shell/menu ./shell/emu ./shell/fonts ./shell/scalers
+VPATH		= $(SRCDIR)
+SRC_C		= $(foreach dir, $(SRCDIR), $(wildcard $(dir)/*.c))
+OBJ_C		= $(notdir $(patsubst %.c, %.o, $(SRC_C)))
+OBJS		= $(OBJ_C)
+
+# Rules to make executable
+$(PRGNAME): $(OBJS)  
+	$(CC) $(CFLAGS) -o $(PRGNAME) $^ $(LDFLAGS)
+	
+$(OBJ_C) : %.o : %.c
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 clean:
-	$(RM) $(CLEANFILES)
-
+	rm -f $(PRGNAME)$(EXESUFFIX) *.o

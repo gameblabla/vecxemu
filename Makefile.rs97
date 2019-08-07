@@ -1,0 +1,45 @@
+PRGNAME     = vecxrs97.elf
+CC          = /opt/rs97-toolchain/bin/mipsel-linux-gcc
+PROFILE		= 2
+
+# change compilation / linking flag options
+
+INCLUDES	= -Ishell/input/sdl -Icore -Icore/sound -Ishell/menu -Ishell/video/sdl -Ishell/audio -Ishell/scalers -Ishell/headers -Ishell/fonts
+DEFINES		= -DLSB_FIRST -DINLINE="inline"
+
+CFLAGS		=  $(INCLUDES) $(DEFINES)
+CFLAGS		+= -std=gnu99 
+CFLAGS		+= -Ofast -fdata-sections -ffunction-sections -mno-fp-exceptions -mno-check-zero-division -mframe-header-opt -fsingle-precision-constant -fno-common -march=mips32 -mtune=mips32 
+CFLAGS		+= -fno-PIC -mno-abicalls
+CFLAGS		+= -mlong32 -mno-micromips -mno-interlink-compressed
+
+CFLAGS		+= $(FLTO_FLAGS) -funroll-loops -fsection-anchors
+CFLAGS		+= -fno-stack-protector -fomit-frame-pointer -falign-functions=1 -falign-jumps=1 -falign-loops=1
+ifeq ($(PROFILE), 1)
+CFLAGS 		+= -fprofile-generate=/home/retrofw/profile
+else ifeq ($(PROFILE), 2)
+CFLAGS		+= -fprofile-use -fbranch-probabilities
+endif
+
+LDFLAGS     =  -lc -lm -lgcc -lSDL -lSDL_image -ljpeg -lpng -lz -Wl,--as-needed -Wl,--gc-sections -flto -fuse-linker-plugin -fwhole-program -no-pie -s
+ifeq ($(PROFILE), 1)
+LDFLAGS 	+= -lgcov
+endif
+
+# Files to be compiled
+SRCDIR 		= ./core
+SRCDIR 		+= ./shell/video/sdl ./shell/audio/sdl ./shell/input/sdl ./shell/menu ./shell/emu ./shell/fonts ./shell/scalers
+VPATH		= $(SRCDIR)
+SRC_C		= $(foreach dir, $(SRCDIR), $(wildcard $(dir)/*.c))
+OBJ_C		= $(notdir $(patsubst %.c, %.o, $(SRC_C)))
+OBJS		= $(OBJ_C)
+
+# Rules to make executable
+$(PRGNAME): $(OBJS)  
+	$(CC) $(CFLAGS) -o $(PRGNAME) $^ $(LDFLAGS)
+	
+$(OBJ_C) : %.o : %.c
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+clean:
+	rm -f $(PRGNAME)$(EXESUFFIX) *.o
