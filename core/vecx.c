@@ -91,33 +91,20 @@ void sys_state(uint_fast8_t load, FILE* fp)
 	if (load == 1)
 	{
 		fread(&fcycles, sizeof(uint8_t), sizeof(fcycles), fp);
-		fread(&vector_hash, sizeof(uint8_t), sizeof(vector_hash), fp);
-		fread(&vectors_draw, sizeof(uint8_t), sizeof(vectors_draw), fp);
-		fread(&vectors_erse, sizeof(uint8_t), sizeof(vectors_erse), fp);
-		
-		fread(&vectors_set, sizeof(uint8_t), sizeof(vectors_set), fp);
-		
-		fread(&vector_erse_cnt, sizeof(uint8_t), sizeof(vector_erse_cnt), fp);
-		fread(&vector_draw_cnt, sizeof(uint8_t), sizeof(vector_draw_cnt), fp);
 		
 		fread(&alg, sizeof(uint8_t), sizeof(alg), fp);
 		fread(&via, sizeof(uint8_t), sizeof(via), fp);
 		
 		fread(&ram, sizeof(uint8_t), sizeof(ram), fp);
 		fread(&snd_regs, sizeof(uint8_t), sizeof(snd_regs), fp);
+		
+		/* Reset vectors_set to 0 */
+		memset(vectors_set, 0, (2 * VECTOR_CNT) * sizeof(vector_t));
 	}
 	else
 	{
 		fwrite(&fcycles, sizeof(uint8_t), sizeof(fcycles), fp);
-		fwrite(&vector_hash, sizeof(uint8_t), sizeof(vector_hash), fp);
-		fwrite(&vectors_draw, sizeof(uint8_t), sizeof(vectors_draw), fp);
-		fwrite(&vectors_erse, sizeof(uint8_t), sizeof(vectors_erse), fp);
-		
-		fwrite(&vectors_set, sizeof(uint8_t), sizeof(vectors_set), fp);
-		
-		fwrite(&vector_erse_cnt, sizeof(uint8_t), sizeof(vector_erse_cnt), fp);
-		fwrite(&vector_draw_cnt, sizeof(uint8_t), sizeof(vector_draw_cnt), fp);
-		
+
 		fwrite(&alg, sizeof(uint8_t), sizeof(alg), fp);
 		fwrite(&via, sizeof(uint8_t), sizeof(via), fp);
 		
@@ -556,7 +543,7 @@ void vecx_reset (void)
 
 	/* ram */
 
-	for (r = 0; r < 1024; r++) {
+	for (r = 0; r < sizeof(ram); r++) {
 		ram[r] = r & 0xff;
 	}
 
