@@ -25,6 +25,8 @@ uint_fast8_t emulator_state = 0;
 uint_fast8_t done = 0;
 Uint32 next_time;
 
+/* https://github.com/libretro/libretro-vecx/issues/6 */
+
 void SaveState(const char* path, uint_fast8_t load)
 {
 	FILE* fp;
@@ -83,6 +85,7 @@ static uint32_t Load_Game(char* cartfilename)
 {
 	FILE *f;
 	long sz;
+	uint_fast32_t b;
 	
 	f = fopen(cartfilename, "rb");
 	if (!f)
@@ -106,6 +109,11 @@ static uint32_t Load_Game(char* cartfilename)
 		
 	fread(cart, sizeof(uint8_t), sizeof(cart), f);
 	fclose(f);
+	
+	for(b = 0; b < sizeof(cart); b++)
+	{
+		set_cart(b, cart[b]);
+	}
 	
 	return 1;
 }

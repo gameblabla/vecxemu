@@ -4,13 +4,10 @@
 /* GPLv3 License - See LICENSE.md for more information. */
 
 /* Gameblabla August 7th 2019 :
- * - Increase cart variable lengh to allow 48k roms
  * - Allow saving of VIA, analog variables. It's quite big though. Useful for save state
  * */
- 
 
-/* Was set to 0x8000 before but apparently 48k carts are supported too. */
-#define MAX_CART_SIZE 0xC000
+#define MAX_CART_SIZE 0x8000
 
 enum {
 	VECTREX_MHZ		= 1500000, /* speed of the vectrex being emulated */
@@ -57,7 +54,10 @@ struct analog_chips
 };
 
 extern unsigned char rom[8192];
-extern unsigned char cart[32768+16384];
+extern unsigned char cart[65536];
+
+extern unsigned char get_cart(unsigned pos);
+extern void set_cart(unsigned pos, unsigned char data);
 
 extern unsigned snd_regs[16];
 

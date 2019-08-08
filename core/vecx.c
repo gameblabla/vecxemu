@@ -1,7 +1,6 @@
 /* GPLv3 License - See LICENSE.md for more information. */
 
 /* Gameblabla August 7th 2019 :
- * - Increase cart variable lengh to allow 48k roms
  * - Allow saving of VIA, analog variables. It's quite big though. Useful for save state
  * */
  
@@ -14,8 +13,39 @@
 #define einline __inline
 
 unsigned char rom[8192];
-unsigned char cart[32768+16384];
+unsigned char cart[65536];
 static unsigned char ram[1024];
+
+/* BankSwitching code from VecXGL fork */
+
+#define BS_0 0
+#define BS_1 1
+#define BS_2 2
+#define BS_3 3
+#define BS_4 4
+#define BS_5 5
+
+unsigned newbankswitchOffset = 0;
+unsigned bankswitchOffset = 0;
+unsigned char big = 0;
+
+unsigned char get_cart(unsigned pos)
+{
+	return cart[(pos+bankswitchOffset)%65536];
+}
+
+void set_cart(unsigned pos, unsigned char data)
+{
+	// 64k carts should have data at this offset
+	if (pos == 32768 && data != 0)
+	{
+		big = 1;
+	} 
+	cart[(pos)%65536] = data; 
+}
+
+unsigned bankswitchstate = BS_0;
+
 
 /* the sound chip registers */
 
@@ -221,7 +251,6 @@ unsigned char read8 (unsigned address)
 
 	if ((address & 0xe000) == 0xe000) {
 		/* rom */
-
 		data = rom[address & 0x1fff];
 	} else if ((address & 0xe000) == 0xc000) {
 		if (address & 0x800) {
@@ -353,7 +382,7 @@ unsigned char read8 (unsigned address)
 	} else if (address < MAX_CART_SIZE) {
 		/* cartridge */
 
-		data = cart[address];
+		data = get_cart(address);
 	} else {
 		data = 0xff;
 	}
@@ -375,6 +404,17 @@ void write8 (unsigned address, unsigned char data)
 		if (address & 0x1000) {
 			switch (address & 0xf) {
 			case 0x0:
+				if (bankswitchstate == BS_2)
+				{
+					if (data == 1)
+						bankswitchstate = BS_3;
+					else
+						bankswitchstate = BS_0;
+				}
+				else 
+				{
+					bankswitchstate = BS_0;
+				}
 				via.orb = data;
 
 				snd_update ();
@@ -392,7 +432,19 @@ void write8 (unsigned address, unsigned char data)
 				break;
 			case 0x1:
 				/* register 1 also performs handshakes if necessary */
-
+				
+				if (bankswitchstate == BS_3)
+				{
+					if (data == 0)
+						bankswitchstate = BS_4;
+					else
+						bankswitchstate = BS_0;
+				} 
+				else 
+				{
+					bankswitchstate = BS_0;
+				}
+				
 				if ((via.pcr & 0x0e) == 0x08) {
 					/* if ca2 is in pulse mode or handshake mode, then it
 					 * goes low whenever ora is written.
@@ -419,13 +471,25 @@ void write8 (unsigned address, unsigned char data)
 				break;
 			case 0x2:
 				via.ddrb = data;
+				
+				bankswitchstate = BS_1;
+				/* Don't use bankswitching code for non-expanded games */
+				if (!big || (data & 0x40))
+					newbankswitchOffset = 0;
+				else
+					newbankswitchOffset = 32768;
+					
 				break;
 			case 0x3:
 				via.ddra = data;
 				break;
 			case 0x4:
+				if (bankswitchstate == BS_5)
+				{
+					bankswitchOffset = newbankswitchOffset;
+					bankswitchstate = BS_0;
+				}
 				/* T1 low order counter */
-
 				via.t1ll = data;
 
 				break;
@@ -480,6 +544,17 @@ void write8 (unsigned address, unsigned char data)
 
 				break;
 			case 0xb:
+				if (bankswitchstate == BS_4)
+				{
+					if (data == 0x98)
+						bankswitchstate = BS_5;
+					else
+						bankswitchstate = BS_0;
+				}
+				else 
+				{
+					bankswitchstate = BS_0;
+				}
 				via.acr = data;
 				break;
 			case 0xc:
