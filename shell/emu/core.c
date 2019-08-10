@@ -25,8 +25,6 @@ uint_fast8_t emulator_state = 0;
 uint_fast8_t done = 0;
 Uint32 next_time;
 
-/* https://github.com/libretro/libretro-vecx/issues/6 */
-
 void SaveState(const char* path, uint_fast8_t load)
 {
 	FILE* fp;
@@ -124,15 +122,16 @@ int main(int argc, char* argv[])
 	
     printf("Starting VecxEMU\n");
 
-	Init_Configuration();
-
-	snprintf(BIOSRom_path, sizeof(BIOSRom_path), "%s/%s", home_path, "rom.dat");
-	res = Load_BIOS(BIOSRom_path);
-	
 	/* If we find a Cartridge being loaded from command line then load that with its overlay. */
 	if (argc > 1)
 	{
 		snprintf(GameName_emu, sizeof(GameName_emu), "%s", basename(argv[1]));
+		
+		Init_Configuration();
+		
+		snprintf(BIOSRom_path, sizeof(BIOSRom_path), "%s/%s", home_path, "rom.dat");
+		res = Load_BIOS(BIOSRom_path);
+		
 		Load_Game(argv[1]);
 		Init_Video(argv[1]);
 	}
@@ -140,6 +139,12 @@ int main(int argc, char* argv[])
 	else
 	{
 		snprintf(GameName_emu, sizeof(GameName_emu), "%s", basename(BIOSRom_path));
+		
+		Init_Configuration();
+		
+		snprintf(BIOSRom_path, sizeof(BIOSRom_path), "%s/%s", home_path, "rom.dat");
+		res = Load_BIOS(BIOSRom_path);
+		
 		printf("No cart loaded : Using internal ROM.\n");
 		if (!res)
 		{
