@@ -5,7 +5,7 @@ PROFILE		= 0
 # change compilation / linking flag options
 
 INCLUDES	= -Ishell/input/sdl -Icore -Icore/sound -Ishell/menu -Ishell/video/sdl -Ishell/audio -Ishell/scalers -Ishell/headers -Ishell/fonts
-DEFINES		= -DLSB_FIRST -DINLINE="inline"
+DEFINES		= -DLSB_FIRST -DINLINE="inline" -DSOUND_HACK
 
 CFLAGS		=  $(INCLUDES) $(DEFINES)
 CFLAGS		+= -std=gnu99 
@@ -20,7 +20,7 @@ else ifeq ($(PROFILE), 2)
 CFLAGS		+= -fprofile-use -fbranch-probabilities
 endif
 
-LDFLAGS     =  -lc -lm -lgcc -lSDL -lSDL_image -ljpeg -lpng -lz -Wl,--as-needed -Wl,--gc-sections -flto -fuse-linker-plugin -fwhole-program -no-pie -s
+LDFLAGS     =  -lc -lm -lgcc -lSDL -lasound -lSDL_image -ljpeg -lpng -lz -Wl,--as-needed -Wl,--gc-sections -flto -fuse-linker-plugin -fwhole-program -no-pie -s
 ifeq ($(PROFILE), 1)
 LDFLAGS 	+= -lgcov
 endif

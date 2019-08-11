@@ -514,8 +514,13 @@ void e8910_init_sound()
 	PSG.ready = 1;
 
 	// set up audio buffering
+#ifdef SOUND_HACK
+	reqSpec.freq = SOUND_FREQ/2;            // Audio frequency in samples per second
+	reqSpec.format = AUDIO_S16SYS;          // Audio data format
+#else
 	reqSpec.freq = SOUND_FREQ;            // Audio frequency in samples per second
 	reqSpec.format = AUDIO_U8;          // Audio data format
+#endif
 	reqSpec.channels = 1;            // Number of channels: 1 mono, 2 stereo
 	reqSpec.samples = SOUND_SAMPLE;            // Audio buffer size in samples
 	reqSpec.callback = e8910_callback;      // Callback function for filling the audio buffer
