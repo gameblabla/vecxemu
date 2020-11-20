@@ -1,22 +1,22 @@
 PRGNAME     = vecx.elf
 CC          = /opt/gcw0-toolchain/bin/mipsel-linux-gcc
-PROFILE		= 0
+PROFILE		= 2
 HUGE_PAGES  = 1
 
 # change compilation / linking flag options
 
 INCLUDES	= -Ishell/input/sdl -Icore -Icore/sound -Ishell/menu -Ishell/video/sdl -Ishell/audio -Ishell/scalers -Ishell/headers -Ishell/fonts
-DEFINES		= -DLSB_FIRST -DINLINE="inline"
+DEFINES		= -DLSB_FIRST -DINLINE="inline" -DNOROTATE
 
 CFLAGS		=  $(INCLUDES) $(DEFINES)
 CFLAGS		+= -std=gnu99 
 CFLAGS		+= -Ofast -fdata-sections -ffunction-sections -mno-fp-exceptions -mno-check-zero-division -mframe-header-opt -fsingle-precision-constant -fno-common -march=mips32r2 -mtune=mips32r2
-CFLAGS		+= -mlong32 -mno-micromips -mno-interlink-compressed
+CFLAGS		+= -mlong32 -mno-micromips -mno-interlink-compressed -fno-PIC -mno-shared
 
 CFLAGS		+= $(FLTO_FLAGS) -funroll-loops -fsection-anchors
-CFLAGS		+= -fno-stack-protector -fomit-frame-pointer -falign-functions=1 -falign-jumps=1 -falign-loops=1
+CFLAGS		+= -fno-stack-protector -fomit-frame-pointer
 ifeq ($(PROFILE), 1)
-CFLAGS 		+= -fprofile-generate=/usr/local/home
+CFLAGS 		+= -fprofile-generate=/usr/local/home/vecx
 else ifeq ($(PROFILE), 2)
 CFLAGS		+= -fprofile-use -fbranch-probabilities
 endif
@@ -24,7 +24,7 @@ endif
 ifeq ($(HUGE_PAGES), 0)
 LDFLAGS		= -nodefaultlibs
 endif
-LDFLAGS     +=  -lc -lm -lgcc -lSDL -lSDL_image -ljpeg -lpng -lz -Wl,--as-needed -Wl,--gc-sections -flto -s
+LDFLAGS     +=  -lc -lm -lgcc -lSDL -lSDL_image -lSDL_gfx -lz -Wl,--as-needed -Wl,--gc-sections -flto -s
 ifeq ($(HUGE_PAGES), 1)
 LDFLAGS		+= -Wl,-zcommon-page-size=2097152 -Wl,-zmax-page-size=2097152 -lhugetlbfs
 endif
@@ -34,7 +34,7 @@ endif
 
 # Files to be compiled
 SRCDIR 		= ./core
-SRCDIR 		+= ./shell/video/sdl ./shell/audio/sdl ./shell/input/sdl ./shell/menu ./shell/emu ./shell/fonts ./shell/scalers
+SRCDIR 		+= ./shell/video/gcw0 ./shell/audio/sdl ./shell/input/sdl ./shell/menu ./shell/emu ./shell/fonts ./shell/scalers
 VPATH		= $(SRCDIR)
 SRC_C		= $(foreach dir, $(SRCDIR), $(wildcard $(dir)/*.c))
 OBJ_C		= $(notdir $(patsubst %.c, %.o, $(SRC_C)))

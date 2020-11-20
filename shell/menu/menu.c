@@ -22,11 +22,17 @@ extern void SaveState(const char* path, uint_fast8_t load);
 
 t_config option;
 
-char home_path[256];
+char home_path[256], overlay_path_home[256];
 static char save_path[256], conf_path[256];
 static uint32_t controls_chosen = 0;
 
 static uint8_t save_slot = 0;
+
+#ifdef NOROTATE
+#define NOROTATE_OFFSET 1
+#else
+#define NOROTATE_OFFSET 0
+#endif
 
 static void SaveState_Menu(uint_fast8_t load_mode, uint_fast8_t slot)
 {
@@ -290,7 +296,7 @@ void Menu()
     
     Set_Video_Menu();
     
-    while (((currentselection != 1) && (currentselection != 6)) || (!pressed))
+    while (((currentselection != 1) && (currentselection != 6-NOROTATE_OFFSET)) || (!pressed))
     {
         pressed = 0;
         
@@ -311,6 +317,7 @@ void Menu()
 		if (currentselection == 3) print_string(text, TextRed, 0, 5, 85, backbuffer->pixels);
 		else print_string(text, TextWhite, 0, 5, 85, backbuffer->pixels);
 		
+		#ifndef NOROTATE
         if (currentselection == 4)
         {
 			switch(option.fullscreen)
@@ -341,11 +348,12 @@ void Menu()
 				break;
 			}
         }
+        #endif
 
-		if (currentselection == 5) print_string("Input remapping", TextRed, 0, 5, 125, backbuffer->pixels);
+		if (currentselection == 5-NOROTATE_OFFSET) print_string("Input remapping", TextRed, 0, 5, 125, backbuffer->pixels);
 		else print_string("Input remapping", TextWhite, 0, 5, 125, backbuffer->pixels);
 		
-		if (currentselection == 6) print_string("Quit", TextRed, 0, 5, 145, backbuffer->pixels);
+		if (currentselection == 6-NOROTATE_OFFSET) print_string("Quit", TextRed, 0, 5, 145, backbuffer->pixels);
 		else print_string("Quit", TextWhite, 0, 5, 145, backbuffer->pixels);
 
 		print_string("Vecx fork by gameblabla", TextWhite, 0, 5, 205, backbuffer->pixels);
@@ -360,11 +368,11 @@ void Menu()
                     case SDLK_UP:
                         currentselection--;
                         if (currentselection == 0)
-                            currentselection = 6;
+                            currentselection = 6-NOROTATE_OFFSET;
                         break;
                     case SDLK_DOWN:
                         currentselection++;
-                        if (currentselection == 7)
+                        if (currentselection == 7-NOROTATE_OFFSET)
                             currentselection = 1;
                         break;
                     case SDLK_END:
@@ -384,11 +392,13 @@ void Menu()
                             case 3:
                                 if (save_slot > 0) save_slot--;
 							break;
+							#ifndef NOROTATE
                             case 4:
 							option.fullscreen--;
 							if (option.fullscreen < 0)
 								option.fullscreen = 2;
 							break;
+							#endif
                         }
                         break;
                     case SDLK_RIGHT:
@@ -400,11 +410,13 @@ void Menu()
 								if (save_slot == 10)
 									save_slot = 9;
 							break;
+							#ifndef NOROTATE
                             case 4:
                                 option.fullscreen++;
                                 if (option.fullscreen > 2)
                                     option.fullscreen = 0;
 							break;
+							#endif
                         }
                         break;
 					default:
@@ -422,14 +434,16 @@ void Menu()
         {
             switch(currentselection)
             {
-				case 5:
+				case 5-NOROTATE_OFFSET:
 					Input_Remapping();
 				break;
+				#ifndef NOROTATE
                 case 4 :
                     option.fullscreen++;
                     if (option.fullscreen > 2)
                         option.fullscreen = 0;
                     break;
+                #endif
                 case 2 :
                     SaveState_Menu(1, save_slot);
 					currentselection = 1;
@@ -443,7 +457,7 @@ void Menu()
             }
         }
 
-		bitmap_scale(0,0,320,240,HOST_WIDTH_RESOLUTION,HOST_HEIGHT_RESOLUTION,backbuffer->w,0,(uint16_t* restrict)backbuffer->pixels,(uint16_t* restrict)sdl_screen->pixels);
+		SDL_SoftStretch(backbuffer, NULL, sdl_screen, NULL);
 		SDL_Flip(sdl_screen);
 		
 		/* Delay things a bit so it doesn't eat our CPU. */
@@ -459,7 +473,7 @@ void Menu()
     SDL_Flip(sdl_screen);
     #endif
     
-    if (currentselection == 6)
+    if (currentselection == 6-NOROTATE_OFFSET)
     {
         done = 1;
 	}
@@ -479,6 +493,7 @@ void Init_Configuration()
 	
 	snprintf(conf_path, sizeof(conf_path), "%s/conf", home_path);
 	snprintf(save_path, sizeof(save_path), "%s/sstates", home_path);
+	snprintf(overlay_path_home, sizeof(overlay_path_home), "%s/overlays", home_path);
 	
 	/* We check first if folder does not exist. 
 	 * Let's only try to create it if so in order to decrease boot times.
@@ -497,6 +512,11 @@ void Init_Configuration()
 	if (access( conf_path, F_OK ) == -1)
 	{
 		mkdir(conf_path, 0755);
+	}
+	
+	if (access( overlay_path_home, F_OK ) == -1)
+	{
+		mkdir(overlay_path_home, 0755);
 	}
 	
 	config_load();
